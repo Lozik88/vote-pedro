@@ -1,0 +1,15 @@
+# https://news.scorebooklive.com/texas/2023/04/21/vote-now-who-is-the-best-right-handed-pitcher-in-north-texas-high-school-softball
+# you can download your the chrome driver here. set the absolute path to chrome_driver_path
+# https://chromedriver.chromium.org/downloads
+# https://googlechromelabs.github.io/chrome-for-testing/
+js_source: https://secure.polldaddy.com/p/13562405.js
+
+# webpage that contains poll
+poll_page: https://highschool.athlonsports.com/texas/2024/04/01/vote-who-should-be-sblives-texas-high-school-athlete-of-the-week-4-1-2024
+log_path: logs
+# https://docs.python.org/3/library/logging.html#logging-levels
+log_level: 20
+chrome_driver_path: /home/lozik/code/vote-pedro/driver/123/chromedriver
+
+# number of votes to be cast
+votes_end: 100000
