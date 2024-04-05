@@ -13,7 +13,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -39,9 +38,21 @@ def extract_poll_js(url:str=config['poll_page']):
     the javascript is usually stored under a url like this:
     https://secure.polldaddy.com/p/13562405.js
     """
+    # disconnect_from_pia()
+    # connect_to_pia()
     browser = create_browser()
     browser.get(url)
-    browser
+    # <script type="text/javascript" src="https://secure.polldaddy.com/p/13562405.js"></script>
+    # scroll down the page until js source is found
+    for _ in range(0,25):
+        browser.find_element(By.TAG_NAME,"body").send_keys(Keys.PAGE_DOWN)
+    # extract poll javascript from page
+    js_url = [
+        i.get_attribute("src") 
+            for i in 
+            browser.find_elements(By.TAG_NAME,"script") if i.get_attribute("src").startswith("https://secure.polldaddy.com/p/")
+        ][0]
+    return js_url
 
 # swap this out with whatever localhost address the flask app is running off of.
 url = 'http://127.0.0.1:5000/'
@@ -112,8 +123,17 @@ def disconnect_from_pia():
     except subprocess.CalledProcessError:
         logger.error("Failed to issue disconnect command to PIA VPN.")
 
-def create_browser():
+def create_browser(is_headless:bool=False,**kwargs):
+    # capabilities = DesiredCapabilities.CHROME
+    # # Enable performance logging
+    # capabilities["goog:loggingPrefs"] = {"performance": "ALL"}
+    # options = webdriver.ChromeOptions()
+    # options.add_experimental_option("perfLoggingPrefs", {
+    #     "enableNetwork": True,
+    # })
     options=Options()
+    if is_headless:
+        options.add_argument("--headless") 
     service = Service(executable_path=config['chrome_driver_path'])
     browser = webdriver.Chrome(
         service=service
@@ -203,4 +223,5 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
             f"| {datetime.datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}"
         )
 if __name__ == '__main__':
+    # extract_poll_js()
     rig_poll()
