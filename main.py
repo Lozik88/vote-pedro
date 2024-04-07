@@ -144,6 +144,17 @@ def disconnect_from_pia():
     except subprocess.CalledProcessError:
         logger.error("Failed to issue disconnect command to PIA VPN.")
 
+def get_radio_id(browser,poll_winner:str=config["poll_winner"]):
+    return browser \
+        .find_element(By.XPATH,f".//span[contains(text(),'{poll_winner}')]") \
+        .find_element(By.XPATH,"./..") \
+        .get_attribute("for")
+
+def get_form_id(browser):
+    return browser \
+        .find_element(By.XPATH,".//form[contains(@id,'PDI_form')]") \
+        .get_attribute("id")
+
 def create_browser(is_headless:bool=False,**kwargs):
     """Creates a selenium browser"""
     options=Options()
@@ -156,16 +167,23 @@ def create_browser(is_headless:bool=False,**kwargs):
     )
     return browser
 
-def rig_poll(_:int=0,votes_end:int=config['votes_end']):
+def rig_poll(
+        _:int=0
+        ,votes_end:int=config['votes_end']
+        ,poll_winner:str=config["poll_winner"]
+        ):
     vote_counter=0
     disconnect_from_pia()
     logger.info('Rigging poll...')
-    form_id = "PDI_form13562405"
-    radio_id = 'PDI_answer60615636'
+    # form_id = "PDI_form13562405"
+    # radio_id = 'PDI_answer60615636'
     return_class = 'pds-return-poll'
     browser = create_browser()
-
     browser.get(config["flask_url"])
+    
+    radio_id = get_radio_id(browser,poll_winner)
+    form_id = get_form_id(browser)
+    poll_id = form_id.split("PDI_form")[-1]
     WebDriverWait(browser,30).until(
                     EC.presence_of_element_located(
                         (By.ID,form_id)
@@ -189,7 +207,8 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
         while True:
             WebDriverWait(browser,30).until(
                             EC.element_to_be_clickable(
-                                (By.ID,"pd-vote-button13562405")
+                                # (By.ID,"pd-vote-button13562405")
+                                (By.ID,f"pd-vote-button{poll_id}")
                             )
             ).submit()
 
@@ -214,7 +233,7 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
 
         soup = bs4.BeautifulSoup(browser.page_source, 'html.parser')
         new_total_votes = list([elem for elem in soup.find_all('label') 
-                                if 'Riley Harris' in elem.text
+                                if poll_winner in elem.text
                                 ][0].children)[2].text.split('(')[1].split(' ')[0]
         if total_votes == new_total_votes:
             logger.warning("Vote total has not changed, assuming polls are IP locked. "\
@@ -233,7 +252,7 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
                             )
                         )
         # time.sleep(random.randint(2,3))
-        browser.execute_script('javascript:PDV_go13562405();')
+        browser.execute_script(f'javascript:PDV_go{poll_id}();')
         vote_counter+=1
         diff_time = datetime.datetime.now() - start_time
         hours, remainder = divmod(diff_time.seconds, 3600)
@@ -241,6 +260,7 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
 
         logger.info(
             f"Vote cast:{vote_counter} | Totals: {total_votes} "\
+            f"| To: [{poll_winner}]" \
             f"| TotalTime: " \
                 f"{str(hours).rjust(2,'0')}" \
                 f":{str(minutes).rjust(2,'0')}" \
