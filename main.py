@@ -8,6 +8,7 @@ import logging
 import yaml
 import os
 import sys
+import requests
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,7 +17,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import TimeoutException, UnexpectedAlertPresentException
+from selenium.common.exceptions import (
+    TimeoutException, 
+    UnexpectedAlertPresentException, 
+    NoSuchElementException
+    )
 
 with open("config.yml") as f:
     config = yaml.safe_load(f)
@@ -25,7 +30,7 @@ logger = logging.getLogger("vote-pedro")
 log_file = os.path.join(config['log_path'],datetime.datetime.now().strftime("%Y%m%d_%H%M%S")+".txt")
 logging.basicConfig(
     level=config['log_level']
-    ,format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    ,format="%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s"
     ,handlers=[
         logging.FileHandler(log_file)
         ,logging.StreamHandler(sys.stdout)
@@ -47,15 +52,31 @@ def extract_poll_js(url:str=config['poll_page']):
     for _ in range(0,25):
         browser.find_element(By.TAG_NAME,"body").send_keys(Keys.PAGE_DOWN)
     # extract poll javascript from page
-    js_url = [
-        i.get_attribute("src") 
-            for i in 
-            browser.find_elements(By.TAG_NAME,"script") if i.get_attribute("src").startswith("https://secure.polldaddy.com/p/")
-        ][0]
+    try:
+        js_url = browser.find_element(By.XPATH,".//script[starts-with(@src,'https://secure.polldaddy.com/p/')]").get_attribute("src")
+    except NoSuchElementException as e:
+        logger.error("polldaddy source url wasn't found. " \
+                     "You may have encountered a CAPTCHA or the poll on this page doesn't " \
+                     "use https://secure.polldaddy.com/p/")
+        raise e
+    browser.close()
     return js_url
 
-# swap this out with whatever localhost address the flask app is running off of.
-url = 'http://127.0.0.1:5000/'
+def create_js_file(url:str):
+    """
+    The `url` is the secure.polldaddy.com url that contains the specific poll id
+    The js source will be extracted and  saved to dynamic-poll.js for the flask application.
+    """
+    response = requests.get(url)
+    with open(os.path.join('webgui','static','dynamic-poll.js'),'w') as f:
+        f.write(response.text)
+
+def set_dynamic_page(url:str):
+    """
+    Routine to setup dynamic-poll.js. `url` is the webpage that contains the poll you want to rig.
+    """
+    js_url = extract_poll_js(url)
+    create_js_file(js_url)
 
 def save_cookies(browser):
     cookies = browser.get_cookies()
@@ -124,13 +145,7 @@ def disconnect_from_pia():
         logger.error("Failed to issue disconnect command to PIA VPN.")
 
 def create_browser(is_headless:bool=False,**kwargs):
-    # capabilities = DesiredCapabilities.CHROME
-    # # Enable performance logging
-    # capabilities["goog:loggingPrefs"] = {"performance": "ALL"}
-    # options = webdriver.ChromeOptions()
-    # options.add_experimental_option("perfLoggingPrefs", {
-    #     "enableNetwork": True,
-    # })
+    """Creates a selenium browser"""
     options=Options()
     if is_headless:
         options.add_argument("--headless") 
@@ -150,13 +165,14 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
     return_class = 'pds-return-poll'
     browser = create_browser()
 
-    browser.get(url)
+    browser.get(config["flask_url"])
     WebDriverWait(browser,30).until(
                     EC.presence_of_element_located(
                         (By.ID,form_id)
                         )
                     )
     total_votes=""
+    start_time = datetime.datetime.now()
     for i in range(1,votes_end,1):
         # pick candidate
         WebDriverWait(browser,30).until(
@@ -205,6 +221,7 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
                   "Acquiring new IP address.")
             disconnect_from_pia()
             connect_to_pia()
+            time.sleep(5)
             # print("Vote total has not changed from previous count. Taking a snooze...")
             # time.sleep(300)
         total_votes=new_total_votes
@@ -218,10 +235,17 @@ def rig_poll(_:int=0,votes_end:int=config['votes_end']):
         # time.sleep(random.randint(2,3))
         browser.execute_script('javascript:PDV_go13562405();')
         vote_counter+=1
+        diff_time = datetime.datetime.now() - start_time
+        hours, remainder = divmod(diff_time.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
         logger.info(
-            f"Vote cast:{vote_counter} Totals: {total_votes} "\
-            f"| {datetime.datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}"
+            f"Vote cast:{vote_counter} | Totals: {total_votes} "\
+            f"| TotalTime: " \
+                f"{str(hours).rjust(2,'0')}" \
+                f":{str(minutes).rjust(2,'0')}" \
+                f":{str(seconds).rjust(2,'0')}"
+            # f"{datetime.datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}"
         )
-if __name__ == '__main__':
-    # extract_poll_js()
+if __name__ == '__main__':      
     rig_poll()
