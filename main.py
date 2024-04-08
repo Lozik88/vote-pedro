@@ -71,7 +71,7 @@ def create_js_file(url:str):
     with open(os.path.join('webgui','static','dynamic-poll.js'),'w') as f:
         f.write(response.text)
 
-def set_dynamic_page(url:str):
+def set_dynamic_page(url:str=config["poll_page"]):
     """
     Routine to setup dynamic-poll.js. `url` is the webpage that contains the poll you want to rig.
     """
@@ -141,7 +141,7 @@ def disconnect_from_pia():
             
         logger.info("Disconnected from PIA VPN.")
         
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         logger.error("Failed to issue disconnect command to PIA VPN.")
 
 def get_radio_id(browser,poll_winner:str=config["poll_winner"]):
@@ -211,7 +211,10 @@ def rig_poll(
                                 (By.ID,f"pd-vote-button{poll_id}")
                             )
             ).submit()
-
+            # ty_for_votes = browser.find_elements(By.XPATH,".//div[@class='pds-question-top']")
+            # if ty_for_votes:
+            #     if 'we have already counted your vote' in ty_for_votes[0].text:
+            #         time.sleep(10)
             # grabbing vote counts. 
             # added retry block because the submit button doesn't always produce poll counts
             try:
@@ -265,7 +268,8 @@ def rig_poll(
                 f"{str(hours).rjust(2,'0')}" \
                 f":{str(minutes).rjust(2,'0')}" \
                 f":{str(seconds).rjust(2,'0')}"
-            # f"{datetime.datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}"
         )
-if __name__ == '__main__':      
+if __name__ == '__main__':     
+    if config["set_dynamic_js"]:
+        set_dynamic_page()
     rig_poll()
