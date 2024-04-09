@@ -24,6 +24,7 @@ Install [chromedriver](https://googlechromelabs.github.io/chrome-for-testing/#st
 | poll_page    | Web URL containing poll js source. This page should contain the poll you're aiming to rig.     |
 |set_dynamic_js|If `True`, the application will scrape the javascript source code from the poll on  `poll_page`. The source code will be saved to `webgui/static/dynamic-poll.js`. Leave this as `False` if you already have the source code. |
 |use_dynamic_js|If `True`, the flask application will run `webgui/static/dynamic-poll.js`. If false, it will run `webgui/static/poll.js`|
+|votes_end|Number of votes to cast.|
 
 ## Running the app
 In the CLI use:
