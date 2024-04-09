@@ -9,6 +9,7 @@ import yaml
 import os
 import sys
 import requests
+import shutil
 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -22,7 +23,7 @@ from selenium.common.exceptions import (
     UnexpectedAlertPresentException, 
     NoSuchElementException
     )
-
+project_path = os.path.join(os.path.dirname(__file__))
 with open("config.yml") as f:
     config = yaml.safe_load(f)
 
@@ -43,8 +44,6 @@ def extract_poll_js(url:str=config['poll_page']):
     the javascript is usually stored under a url like this:
     https://secure.polldaddy.com/p/13562405.js
     """
-    # disconnect_from_pia()
-    # connect_to_pia()
     browser = create_browser()
     browser.get(url)
     # <script type="text/javascript" src="https://secure.polldaddy.com/p/13562405.js"></script>
@@ -172,11 +171,13 @@ def rig_poll(
         ,votes_end:int=config['votes_end']
         ,poll_winner:str=config["poll_winner"]
         ):
-    vote_counter=0
-    disconnect_from_pia()
     logger.info('Rigging poll...')
-    # form_id = "PDI_form13562405"
-    # radio_id = 'PDI_answer60615636'
+    
+    has_pia = bool(shutil.which("piactl"))
+    if has_pia:
+        disconnect_from_pia()
+    
+    vote_counter=0
     return_class = 'pds-return-poll'
     browser = create_browser()
     browser.get(config["flask_url"])
@@ -239,13 +240,15 @@ def rig_poll(
                                 if poll_winner in elem.text
                                 ][0].children)[2].text.split('(')[1].split(' ')[0]
         if total_votes == new_total_votes:
-            logger.warning("Vote total has not changed, assuming polls are IP locked. "\
-                  "Acquiring new IP address.")
-            disconnect_from_pia()
-            connect_to_pia()
-            time.sleep(5)
-            # print("Vote total has not changed from previous count. Taking a snooze...")
-            # time.sleep(300)
+            if has_pia:
+                logger.warning("Vote total has not changed, assuming polls are IP locked. "\
+                    "Acquiring new IP address.")
+                disconnect_from_pia()
+                connect_to_pia()
+                time.sleep(5)
+            else:
+                print("Vote total has not changed from previous count. Taking a snooze...")
+                time.sleep(300)
         total_votes=new_total_votes
         
         # return to poll screen
@@ -269,7 +272,15 @@ def rig_poll(
                 f":{str(minutes).rjust(2,'0')}" \
                 f":{str(seconds).rjust(2,'0')}"
         )
-if __name__ == '__main__':     
-    if config["set_dynamic_js"]:
-        set_dynamic_page()
+
+def start_flask_app():
+    flask_script = os.path.join(project_path,"webgui","main.py")
+    os.environ["FLASK_APP"] = flask_script
+    subprocess.Popen(
+        ["flask","run"]
+        ,env = os.environ
+        )
+    
+if __name__ == '__main__':
+    start_flask_app()
     rig_poll()
